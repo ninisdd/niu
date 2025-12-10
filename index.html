@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>未来粒子 · 全平台适配版 V21</title>
+    <style>
+        :root {
+            /* 保持原版白色 UI 设置 */
+            --primary-color: #ffffff; 
+            --glass-bg: rgba(20, 20, 20, 0.6);
+            --panel-width: 300px;
+        }
+
+        body { 
+            margin: 0; overflow: hidden; background-color: #000000; 
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif; 
+            user-select: none;
+            -webkit-touch-callout: none; /* iOS 禁止长按 */
+        }
+        canvas { display: block; }
+        
+        #input_video { position: absolute; top: 0; left: 0; opacity: 0; z-index: -1; pointer-events: none; }
+
+        #ui-layer {
+            position: absolute; top: 30px; left: 30px; pointer-events: none;
+            color: var(--primary-color); 
+            z-index: 10;
+            transition: all 0.3s; /* 增加适配过渡 */
+        }
+        
+        h1 { 
+            font-size: 2rem; margin: 0; letter-spacing: 6px; 
+            text-transform: uppercase;
+            background: linear-gradient(90deg, var(--primary-color), transparent);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 900; font-style: italic;
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+        }
+        .subtitle {
+            font-size: 0.8rem; letter-spacing: 3px; color: #fff; opacity: 0.8; margin-bottom: 15px;
+            border-bottom: 1px solid var(--primary-color); display: inline-block; padding-bottom: 5px;
+        }
+
+        .status-box {
+            margin-top: 10px; font-size: 0.9rem; font-weight: bold; 
+            border-left: 3px solid var(--primary-color); 
+            background: linear-gradient(90deg, rgba(255,255,255,0.1), transparent);
+            padding: 8px 15px; color: var(--primary-color);
+            backdrop-filter: blur(5px);
+        }
+        #status-text { color: var(--primary-color); text-transform: uppercase; transition: color 0.2s;}
+
+        #fs-btn {
+            position: absolute; bottom: 30px; right: 30px;
+            background: rgba(0, 0, 0, 0.6); 
+            border: 1px solid var(--primary-color); color: var(--primary-color);
+            padding: 10px 30px; cursor: pointer; font-weight: bold; transition: all 0.3s;
+            pointer-events: auto; backdrop-filter: blur(10px); z-index: 10;
+            font-family: "Microsoft YaHei", sans-serif; letter-spacing: 2px;
+            clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%);
+        }
+        #fs-btn:hover { background: var(--primary-color); color: #000; box-shadow: 0 0 20px var(--primary-color); }
+
+        #skeleton-wrapper {
+            position: absolute; bottom: 30px; left: 30px;
+            width: 220px; height: 165px;
+            border: 1px solid var(--primary-color);
+            background: rgba(10, 10, 10, 0.9); z-index: 10;
+            box-shadow: 0 0 15px rgba(255,255,255,0.1);
+            transition: all 0.3s; /* 增加适配过渡 */
+        }
+        #skeleton-canvas { width: 100%; height: 100%; transform: scaleX(-1); opacity: 0.8; }
+        
+        #skeleton-wrapper::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(255, 255, 255, 0.08) 51%, transparent 52%);
+            background-size: 100% 4px; pointer-events: none;
+        }
+        #skeleton-wrapper::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 40px;
+            background: linear-gradient(to bottom, var(--primary-color), transparent);
+            opacity: 0.1; animation: scan 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        @keyframes scan { 0% {top:-20%; opacity:0;} 50% {opacity:0.2;} 100% {top:100%; opacity:0;} }
+
+        #cam-label {
+            position: absolute; top: 0; right: 0; font-size: 10px; 
+            color: #000; background: var(--primary-color); padding: 3px 8px;
+            pointer-events: none; font-weight: 800;
+        }
+
+        #loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: var(--primary-color); font-size: 1.2rem; text-align: center; z-index: 20;
+            text-shadow: 0 0 10px var(--primary-color); letter-spacing: 2px;
+            width: 100%; /* 防止移动端换行 */
+        }
+        .spinner {
+            width: 60px; height: 60px; border: 2px solid rgba(255,255,255,0.1); 
+            border-top: 2px solid var(--primary-color); border-bottom: 2px solid var(--primary-color); 
+            border-radius: 50%; margin: 0 auto 20px; animation: spin 1s ease-in-out infinite; 
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Lil-GUI */
+        .lil-gui { --background-color: var(--glass-bg); --text-color: #eee; --title-background-color: rgba(0,0,0,0.8); --widget-color: #444; --hover-color: #666; --focus-color: #777; --number-color: var(--primary-color); --string-color: var(--primary-color); font-family: "Microsoft YaHei", sans-serif !important; font-size: 13px; }
+        .lil-gui.root { position: absolute; top: 30px; right: 30px; width: var(--panel-width) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-left: 3px solid var(--primary-color); box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: border-color 0.3s; }
+        .lil-gui .title { color: var(--primary-color); text-transform: uppercase; letter-spacing: 2px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); height: 32px; line-height: 32px; }
+        .lil-gui .controller { border-bottom: 1px solid rgba(255,255,255,0.05); padding: 8px 0; }
+        .lil-gui .name { color: #aaa; width: 45% !important; }
+        .lil-gui input[type="text"], .lil-gui input[type="number"] { background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 2px; }
+
+        /* === 修改 2: 增加移动端响应式布局 === */
+        @media (max-width: 768px) {
+            #ui-layer { top: 20px; left: 20px; }
+            h1 { font-size: 1.5rem; letter-spacing: 3px; }
+            .subtitle { font-size: 0.6rem; letter-spacing: 1px; margin-bottom: 8px;}
+            .status-box { padding: 5px 10px; font-size: 0.75rem; }
+            
+            /* 骨骼窗口缩小并移到底部，防止遮挡 */
+            #skeleton-wrapper { width: 120px; height: 90px; bottom: 80px; left: 20px; }
+            
+            /* 全屏按钮调整 */
+            #fs-btn { padding: 8px 20px; font-size: 0.8rem; bottom: 20px; right: 20px; }
+            
+            /* 控制面板变窄 */
+            .lil-gui.root { width: 220px !important; top: 70px; right: 20px; --name-width: 45%; }
+        }
+    </style>
+</head>
+<body>
+
+    <video id="input_video" playsinline webkit-playsinline></video>
+
+    <div id="ui-layer">
+        <h1>3D·粒子交互系统</h1>
+        <div class="subtitle">作者：(原圆)  版本：1.68</div>
+        <div class="status-box">
+            状态: <span id="status-text">正在初始化...</span>
+        </div>
+    </div>
+
+    <div id="skeleton-wrapper">
+        <span id="cam-label">传感器实时追中</span>
+        <canvas id="skeleton-canvas" width="320" height="240"></canvas>
+    </div>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div>传感器校准中...</div>
+    </div>
+
+    <button id="fs-btn">全景模式</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <script>
+        // --- 1. Three.js ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.0012);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.z = 120;
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // 修改 4: 限制像素比，防止移动端 3x/4x 屏幕卡顿
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. Post-Processing ---
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0; bloomPass.strength = 1.8; bloomPass.radius = 0.5;
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // --- 3. Assets ---
+        function createTechTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.translate(64, 64);
+            ctx.fillStyle = '#ffffff';
+            if (type === 'cross') {
+                ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.fillRect(-40, -4, 80, 8); ctx.fillRect(-4, -40, 8, 80);
+            } else if (type === 'data') {
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.strokeRect(-30, -30, 60, 60); ctx.fillRect(-10, -10, 20, 20);
+            } else {
+                const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 60);
+                grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.4, 'rgba(255,255,255,0.2)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, 60, 0, Math.PI * 2); ctx.fill();
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+        const textures = { glow: createTechTexture('glow'), cross: createTechTexture('cross'), data: createTechTexture('data') };
+
+        // --- 4. Particles ---
+        // 修改 5: 检测移动端，如果是手机/平板，粒子数量降至 6000 以保证流畅度
+        const isMobile = window.innerWidth < 768;
+        const particleCount = isMobile ? 6000 : 10000;
+        
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
+        const targetPositions = new Float32Array(particleCount * 3);
+        for (let i = 0; i < particleCount; i++) {
+            positions[i * 3] = (Math.random() - 0.5) * 400; positions[i * 3 + 1] = (Math.random() - 0.5) * 400; positions[i * 3 + 2] = (Math.random() - 0.5) * 400;
+            sizes[i] = Math.random() < 0.1 ? Math.random() * 2 + 1 : Math.random(); 
+        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        
+        const material = new THREE.PointsMaterial({ size: 2.0, map: textures.glow, color: 0x00ffff, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // 指示器白色
+        const indicatorGeo = new THREE.SphereGeometry(2, 16, 16);
+        const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 });
+        const indicatorMesh = new THREE.Mesh(indicatorGeo, indicatorMat);
+        indicatorMesh.visible = false;
+        scene.add(indicatorMesh);
+
+        // --- 5. Logic & GUI ---
+        const shapes = {
+            sphere: () => { const r = 60; const t = Math.random()*Math.PI*2; const p = Math.acos(2*Math.random()-1); const rv = r+(Math.random()-0.5)*5; return [rv*Math.sin(p)*Math.cos(t), rv*Math.sin(p)*Math.sin(t), rv*Math.cos(p)]; },
+            dna: (i) => { const r = 30; const h = 200; const s = i%2===0?0:Math.PI; const y = (Math.random()-0.5)*h; const a = y*0.1+s; const x = Math.cos(a)*r; const z = Math.sin(a)*r; if(Math.random()<0.05) return [(Math.random()-0.5)*r*2, y, (Math.random()-0.5)*r*2]; return [x,y,z]; },
+            torus: () => { const R = 60; const r = 15; const u = Math.random()*Math.PI*2; const v = Math.random()*Math.PI*2; const x = (R+r*Math.cos(v))*Math.cos(u); const z = (R+r*Math.cos(v))*Math.sin(u); return [x, r*Math.sin(v), z]; },
+            cube: () => { const s = 70; return [(Math.random()-0.5)*s*2, (Math.random()-0.5)*s*2, (Math.random()-0.5)*s*2]; }
+        };
+        function updateTargets(shapeName) { for(let i=0; i<particleCount; i++) { const [x,y,z] = shapes[shapeName](i); targetPositions[i*3]=x; targetPositions[i*3+1]=y; targetPositions[i*3+2]=z; } }
+        updateTargets('sphere');
+
+        const params = {
+            uiColor: '#ffffff', 
+            particleColor: '#00ffff',
+            bloomStrength: 1.8,
+            shape: 'sphere', particleType: 'glow', 
+            handOpenSpeed: 10, 
+            controlSensitivity: 3.5
+        };
+
+        const gui = new lil.GUI({ title: 'CONTROL PANEL' });
+        // 如果是移动端，默认收起控制面板
+        if(isMobile) gui.close();
+
+        function updateUIColor(hex) { document.documentElement.style.setProperty('--primary-color', hex); }
+
+        const folder1 = gui.addFolder('VISUAL');
+        folder1.addColor(params, 'uiColor').name('Interface Color').onChange(updateUIColor);
+        folder1.addColor(params, 'particleColor').name('Particle Color').onChange(c => material.color.set(c));
+        folder1.add(params, 'bloomStrength', 0, 5).name('Glow Strength').onChange(v => bloomPass.strength = v);
+        
+        const folder2 = gui.addFolder('MODEL');
+        folder2.add(params, 'shape', { 'Sphere': 'sphere', 'DNA': 'dna', 'Torus': 'torus', 'Cube': 'cube' }).name('Shape').onChange(updateTargets);
+        folder2.add(params, 'particleType', { 'Soft': 'glow', 'Cross': 'cross', 'Data': 'data' }).name('Texture').onChange(t => material.map = textures[t]);
+        
+        const folder3 = gui.addFolder('INTERACTION');
+        folder3.add(params, 'handOpenSpeed', 0, 100).name('Chaos Speed %');
+        folder3.add(params, 'controlSensitivity', 1.0, 8.0).name('Sensitivity');
+
+        // --- 6. Hand Tracking ---
+        const videoElement = document.getElementById('input_video');
+        const skeletonCanvas = document.getElementById('skeleton-canvas');
+        const skeletonCtx = skeletonCanvas.getContext('2d');
+        const statusText = document.getElementById('status-text');
+        
+        let handState = { isPresent: false, isPinching: false, pinchX: 0, pinchY: 0, isOpen: false }; 
+        let prevPinchX = 0, prevPinchY = 0, wasPinching = false;
+        let targetRotationX = 0, targetRotationY = 0, targetRotationZ = 0; 
+
+        function onResults(results) {
+            document.getElementById('loader').style.display = 'none';
+            skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                handState.isPresent = true;
+                const landmarks = results.multiHandLandmarks[0];
+                drawConnectors(skeletonCtx, landmarks, HAND_CONNECTIONS, {color: params.uiColor, lineWidth: 2});
+                drawLandmarks(skeletonCtx, landmarks, {color: '#fff', lineWidth: 0, radius: 3});
+                
+                const thumbTip = landmarks[4]; const indexTip = landmarks[8];
+                const pinchDist = Math.sqrt(Math.pow(thumbTip.x - indexTip.x, 2) + Math.pow(thumbTip.y - indexTip.y, 2));
+                handState.isPinching = pinchDist < 0.06;
+                const centerX = (thumbTip.x + indexTip.x) / 2; const centerY = (thumbTip.y + indexTip.y) / 2;
+                handState.pinchX = (1 - centerX) * 2 - 1; handState.pinchY = -(centerY * 2 - 1);
+
+                if (!handState.isPinching) {
+                    const wrist = landmarks[0]; 
+                    const middleMCP = landmarks[9];
+                    const scaleRef = Math.sqrt(Math.pow(middleMCP.x - wrist.x, 2) + Math.pow(middleMCP.y - wrist.y, 2));
+                    const tips = [8, 12, 16, 20]; let openFingers = 0;
+                    tips.forEach(idx => {
+                        const tip = landmarks[idx];
+                        const distToWrist = Math.sqrt(Math.pow(tip.x - wrist.x, 2) + Math.pow(tip.y - wrist.y, 2));
+                        if (distToWrist > scaleRef * 1.55) openFingers++;
+                    });
+                    handState.isOpen = openFingers >= 3;
+                } else {
+                    handState.isOpen = false;
+                }
+
+                if (handState.isPinching) {
+                    statusText.innerText = "捏合 [已锁定]"; statusText.style.color = "#ff0055";
+                    const camX = centerX * skeletonCanvas.width; const camY = centerY * skeletonCanvas.height;
+                    skeletonCtx.beginPath(); skeletonCtx.arc(camX, camY, 6, 0, 2 * Math.PI); skeletonCtx.fillStyle = "#ff0055"; skeletonCtx.fill();
+                    if (wasPinching) { skeletonCtx.beginPath(); skeletonCtx.moveTo(prevPinchX * skeletonCanvas.width/2 + skeletonCanvas.width/2, -prevPinchY * skeletonCanvas.height/2 + skeletonCanvas.height/2); skeletonCtx.lineTo(camX, camY); skeletonCtx.strokeStyle = "rgba(255,0,85,0.5)"; skeletonCtx.stroke(); }
+                } else if (handState.isOpen) {
+                    statusText.innerText = `手掌 [${params.handOpenSpeed}%]`; 
+                    statusText.style.color = params.uiColor; 
+                } else {
+                    statusText.innerText = "待机中…"; statusText.style.color = "#888";
+                }
+            } else {
+                handState.isPresent = false; statusText.innerText = "无手势输入…"; statusText.style.color = "#555";
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+        hands.onResults(onResults);
+        
+        // 修改 6: 优化摄像头启动，添加 facingMode: 'user' 强制前置，适配平板手机
+        const cameraUtils = new Camera(videoElement, { 
+            onFrame: async () => { await hands.send({image: videoElement}); }, 
+            width: 640, height: 480,
+            facingMode: 'user' 
+        });
+        cameraUtils.start();
+
+        // --- 7. Animation ---
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+            const positions = particles.geometry.attributes.position.array;
+            const sizes = particles.geometry.attributes.size.array;
+            
+            let targetScale = 1.0;
+
+            if (handState.isPresent && handState.isPinching) {
+                if (!wasPinching) { prevPinchX = handState.pinchX; prevPinchY = handState.pinchY; targetRotationX = particles.rotation.x; targetRotationY = particles.rotation.y; }
+                const deltaX = handState.pinchX - prevPinchX; const deltaY = handState.pinchY - prevPinchY;
+                targetRotationY += deltaX * params.controlSensitivity; targetRotationX -= deltaY * params.controlSensitivity;
+                prevPinchX = handState.pinchX; prevPinchY = handState.pinchY;
+                indicatorMesh.position.set(handState.pinchX * 90, handState.pinchY * 60, 50); indicatorMesh.visible = true;
+                wasPinching = true;
+            } 
+            else if (handState.isPresent && handState.isOpen) {
+                const chaosSpeed = params.handOpenSpeed * 0.002; 
+                targetRotationX += Math.sin(time * 0.5) * chaosSpeed;
+                targetRotationY += Math.cos(time * 0.3) * chaosSpeed;
+                targetRotationZ += Math.sin(time * 0.7) * chaosSpeed;
+                targetScale = 1.5; 
+                wasPinching = false; indicatorMesh.visible = false;
+            } 
+            else {
+                targetRotationY += 0.0005; 
+                targetScale = 1.0; 
+                wasPinching = false; indicatorMesh.visible = false; 
+            }
+
+            particles.rotation.x = THREE.MathUtils.lerp(particles.rotation.x, targetRotationX, 0.2);
+            particles.rotation.y = THREE.MathUtils.lerp(particles.rotation.y, targetRotationY, 0.2);
+            particles.rotation.z = THREE.MathUtils.lerp(particles.rotation.z, targetRotationZ || 0, 0.2);
+            particles.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1); 
+
+            for (let i = 0; i < particleCount; i++) {
+                const ix = i*3; const tx = targetPositions[ix]; const glitch = Math.random() < 0.01 ? 2.0 : 0; 
+                positions[ix] += (tx - positions[ix]) * 0.08 + glitch;
+                positions[ix+1] += (targetPositions[ix+1] - positions[ix+1]) * 0.08;
+                positions[ix+2] += (targetPositions[ix+2] - positions[ix+2]) * 0.08;
+                const wave = Math.sin(time * 3 + positions[ix] * 0.05);
+                sizes[i] = (Math.sin(i + time) + 2) * 0.5 * (wave > 0 ? 1.5 : 0.8);
+            }
+            particles.geometry.attributes.position.needsUpdate = true; particles.geometry.attributes.size.needsUpdate = true;
+            composer.render();
+        }
+        animate();
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); });
+        document.getElementById('fs-btn').addEventListener('click', () => { if (!document.fullscreenElement) document.body.requestFullscreen(); else document.exitFullscreen(); });
+    </script>
+</body>
+</html>
